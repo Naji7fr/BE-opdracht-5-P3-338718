@@ -1,0 +1,30 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom navigation styles */
+.nav-link {
+    @apply font-bold text-black text-lg px-4 py-2 rounded-md transition-all duration-200;
+}
+
+.nav-link:hover {
+    @apply text-blue-600 bg-blue-50;
+}
+
+.nav-link.active {
+    @apply text-blue-700 bg-blue-100 border-b-2 border-blue-700;
+}
+
+/* Custom table styles */
+.table-container {
+    @apply shadow-2xl rounded-xl overflow-hidden border border-gray-300;
+}
+
+/* Button hover effects */
+.btn-action {
+    @apply transition-all duration-200 transform;
+}
+
+.btn-action:hover {
+    @apply scale-105 shadow-lg;
+}
