@@ -48,6 +48,11 @@ class UserController extends Controller
             abort(403, 'Unauthorized. Admin access required.');
         }
 
+        // Prevent admin from changing their own role
+        if (Auth::user()->id === $user->id && $request->role !== 'admin') {
+            return redirect()->back()->with('error', 'U kunt uw eigen rol niet wijzigen. Voor veiligheidsredenen moet u altijd admin blijven.');
+        }
+
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,

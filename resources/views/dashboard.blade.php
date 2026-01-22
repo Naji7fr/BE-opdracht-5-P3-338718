@@ -27,6 +27,20 @@
                             </div>
                         </a>
 
+                        <!-- Wijzigen Leveranciers Link -->
+                        <a href="{{ route('leveranciers.wijzigen') }}" 
+                           class="block p-6 bg-purple-50 hover:bg-purple-100 border border-purple-200 rounded-lg transition-colors duration-200">
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-purple-600 mr-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                                </svg>
+                                <div>
+                                    <h4 class="text-xl font-semibold text-gray-800">Wijzigen Leveranciers</h4>
+                                    <p class="text-gray-600 mt-1">Wijzig leveranciergegevens</p>
+                                </div>
+                            </div>
+                        </a>
+
                         @if(auth()->user()->role === 'admin')
                         <!-- User Management Link (Admin only) -->
                         <a href="{{ route('users.index') }}" 

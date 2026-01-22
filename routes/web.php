@@ -30,6 +30,12 @@ Route::middleware('auth')->group(function () {
     Route::get('/leveranciers/{id}/producten', [LeverancierController::class, 'showProducten'])->name('leveranciers.producten');
     Route::get('/leveranciers/{leverancierId}/producten/{productId}/levering', [LeverancierController::class, 'createLevering'])->name('leveranciers.levering.create');
     Route::post('/leveranciers/{leverancierId}/producten/{productId}/levering', [LeverancierController::class, 'storeLevering'])->name('leveranciers.levering.store');
+    
+    // Leverancier wijzigen routes (User Story 01)
+    Route::get('/leveranciers-wijzigen', [LeverancierController::class, 'wijzigen'])->name('leveranciers.wijzigen');
+    Route::get('/leveranciers/{id}/details', [LeverancierController::class, 'show'])->name('leveranciers.show');
+    Route::get('/leveranciers/{id}/edit', [LeverancierController::class, 'edit'])->name('leveranciers.edit');
+    Route::put('/leveranciers/{id}', [LeverancierController::class, 'update'])->name('leveranciers.update');
 });
 
 require __DIR__.'/auth.php';
