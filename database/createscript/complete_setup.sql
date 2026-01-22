@@ -16,6 +16,7 @@ DROP TABLE IF EXISTS Magazijn;
 DROP TABLE IF EXISTS Allergeen;
 DROP TABLE IF EXISTS Product;
 DROP TABLE IF EXISTS Leverancier;
+DROP TABLE IF EXISTS Contact;
 
 -- Note: Laravel system tables (sessions, users, cache, jobs) should be created via migrations
 -- Run: php artisan migrate
@@ -25,10 +26,25 @@ DROP PROCEDURE IF EXISTS sp_GetAllLeveranciers;
 DROP PROCEDURE IF EXISTS sp_GetProductenByLeverancier;
 DROP PROCEDURE IF EXISTS sp_GetLeverancierById;
 DROP PROCEDURE IF EXISTS sp_AddProductLevering;
+DROP PROCEDURE IF EXISTS sp_GetLeverancierWithContactById;
+DROP PROCEDURE IF EXISTS sp_UpdateLeverancier;
 
 -- ============================================
 -- PART 2: CREATE BUSINESS TABLES
 -- ============================================
+
+-- Table: Contact (Contact Address Information)
+CREATE TABLE Contact (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    Straat VARCHAR(100) NOT NULL,
+    Huisnummer VARCHAR(10) NOT NULL,
+    Postcode VARCHAR(10) NOT NULL,
+    Stad VARCHAR(100) NOT NULL,
+    IsActief BIT NOT NULL DEFAULT 1,
+    Opmerking VARCHAR(250) NULL,
+    DatumAangemaakt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    DatumGewijzigd DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
+);
 
 -- Table: Leverancier (Supplier)
 CREATE TABLE Leverancier (
@@ -37,10 +53,12 @@ CREATE TABLE Leverancier (
     ContactPersoon VARCHAR(100) NOT NULL,
     LeverancierNummer VARCHAR(20) NOT NULL UNIQUE,
     Mobiel VARCHAR(15) NOT NULL,
+    ContactId INT NOT NULL,
     IsActief BIT NOT NULL DEFAULT 1,
-    Opmerking VARCHAR(255) NULL,
+    Opmerking VARCHAR(250) NULL,
     DatumAangemaakt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
-    DatumGewijzigd DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6)
+    DatumGewijzigd DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    FOREIGN KEY (ContactId) REFERENCES Contact(Id) ON DELETE RESTRICT
 );
 
 -- Table: Product
@@ -111,14 +129,24 @@ CREATE TABLE ProductPerAllergeen (
 -- PART 3: INSERT INITIAL DATA
 -- ============================================
 
+-- Insert Data: Contact (Contact Addresses)
+INSERT INTO Contact (Straat, Huisnummer, Postcode, Stad) VALUES
+('Van Gilslaan', '34', '1045CB', 'Amsterdam'),
+('Den Dolderpad', '2', '1067RC', 'Hilvarenbeek'),
+('Fredo Raalteweg', '257', '1236OP', 'Utrecht'),
+('Bertrand Russellhof', '21', '2034AP', 'Nijmegen'),
+('Leon van Bonstraat', '213', '145XC', 'Den Haag'),
+('Bea van Lingenlaan', '234', '2197FG', 'Lunteren');
+
 -- Insert Data: Leverancier (Suppliers)
-INSERT INTO Leverancier (Naam, ContactPersoon, LeverancierNummer, Mobiel) VALUES
-('Venco', 'Bert van Linge', 'L1029384719', '06-28493827'),
-('Astra Sweets', 'Jasper del Monte', 'L1029284315', '06-39398734'),
-('Haribo', 'Sven Stalman', 'L1029324748', '06-24383291'),
-('Basset', 'Joyce Stelterberg', 'L1023845773', '06-48293823'),
-('De Bron', 'Remco Veenstra', 'L1023857736', '06-34291234'),
-('Quality Street', 'Johan Nooij', 'L1029234586', '06-23458456');
+-- Note: ContactId mapping: 1=Venco, 2=Astra Sweets, 3=Haribo, 4=Basset, 5=De Bron, 6=Quality Street
+INSERT INTO Leverancier (Naam, ContactPersoon, LeverancierNummer, Mobiel, ContactId) VALUES
+('Venco', 'Bert van Linge', 'L1029384719', '06-28493827', 1),
+('Astra Sweets', 'Jasper del Monte', 'L1029284315', '06-39398734', 2),
+('Haribo', 'Sven Stalman', 'L1029324748', '06-24383291', 3),
+('Basset', 'Joyce Stelterberg', 'L1023845773', '06-48293823', 4),
+('De Bron', 'Remco Veenstra', 'L1023857736', '06-34291234', 5),
+('Quality Street', 'Johan Nooij', 'L1029234586', '06-23458456', 6);
 
 -- Insert Data: Product
 INSERT INTO Product (Naam, Barcode) VALUES
@@ -173,26 +201,26 @@ INSERT INTO ProductPerAllergeen (ProductId, AllergeenId) VALUES
 (12, 4),
 (13, 1), (13, 4), (13, 5);
 
--- Insert Data: ProductPerLeverancier (Starting dates from 2023-12-12)
+-- Insert Data: ProductPerLeverancier (Using dates from assignment: 2023-04-09 to 2023-04-21)
+-- Note: Assignment shows duplicate Id=14, but we use auto-increment so this will be Id=15
 INSERT INTO ProductPerLeverancier (LeverancierId, ProductId, DatumLevering, Aantal, DatumEerstVolgendeLevering) VALUES
-(1, 1, '2023-12-12', 50, '2023-12-19'),
-(1, 1, '2023-12-12', 23, '2023-12-19'),
-(1, 1, '2023-12-12', 21, '2023-12-19'),
-(1, 2, '2023-12-12', 12, '2023-12-19'),
-(1, 3, '2023-12-12', 11, '2023-12-19'),
-(2, 4, '2023-12-12', 16, '2023-12-19'),
-(2, 4, '2023-12-12', 23, '2023-12-19'),
-(2, 5, '2023-12-12', 45, '2023-12-19'),
-(2, 6, '2023-12-12', 30, '2023-12-19'),
-(3, 7, '2023-12-12', 12, '2023-12-19'),
-(3, 7, '2023-12-12', 23, '2023-12-19'),
-(3, 8, '2023-12-12', 12, '2023-12-19'),
-(3, 9, '2023-12-12', 1, '2023-12-19'),
-(4, 10, '2023-12-12', 24, '2023-12-19'),
-(5, 11, '2023-12-12', 47, '2023-12-19'),
-(5, 11, '2023-12-12', 60, '2023-12-19'),
-(5, 12, '2023-12-12', 45, NULL),
-(5, 13, '2023-12-12', 23, NULL);
+(1, 1, '2023-04-09', 23, '2023-04-16'),
+(1, 1, '2023-04-18', 21, '2023-04-25'),
+(1, 2, '2023-04-09', 12, '2023-04-16'),
+(1, 3, '2023-04-10', 11, '2023-04-17'),
+(2, 4, '2023-04-14', 16, '2023-04-21'),
+(2, 4, '2023-04-21', 23, '2023-04-28'),
+(2, 5, '2023-04-14', 45, '2023-04-21'),
+(2, 6, '2023-04-14', 30, '2023-04-21'),
+(3, 7, '2023-04-12', 12, '2023-04-19'),
+(3, 7, '2023-04-19', 23, '2023-04-26'),
+(3, 8, '2023-04-10', 12, '2023-04-17'),
+(3, 9, '2023-04-11', 1, '2023-04-18'),
+(4, 10, '2023-04-16', 24, '2023-04-30'),
+(5, 11, '2023-04-10', 47, '2023-04-17'),
+(5, 11, '2023-04-19', 60, '2023-04-26'),
+(5, 12, '2023-04-11', 45, NULL),
+(5, 13, '2023-04-12', 23, NULL);
 
 -- ============================================
 -- PART 4: CREATE STORED PROCEDURES
@@ -250,6 +278,75 @@ BEGIN
         Mobiel
     FROM Leverancier
     WHERE Id = leverancierId AND IsActief = 1;
+END//
+
+-- Stored Procedure: sp_GetLeverancierWithContactById
+-- Description: Get supplier information with contact address by ID
+CREATE PROCEDURE sp_GetLeverancierWithContactById(IN leverancierId INT)
+BEGIN
+    SELECT 
+        l.Id,
+        l.Naam,
+        l.ContactPersoon,
+        l.LeverancierNummer,
+        l.Mobiel,
+        l.ContactId,
+        c.Straat,
+        c.Huisnummer,
+        c.Postcode,
+        c.Stad
+    FROM Leverancier l
+    INNER JOIN Contact c ON l.ContactId = c.Id
+    WHERE l.Id = leverancierId AND l.IsActief = 1;
+END//
+
+-- Stored Procedure: sp_UpdateLeverancier
+-- Description: Update supplier information and contact address
+-- Returns: 1 on success, 0 on failure (for error scenario testing)
+CREATE PROCEDURE sp_UpdateLeverancier(
+    IN p_LeverancierId INT,
+    IN p_Naam VARCHAR(100),
+    IN p_ContactPersoon VARCHAR(100),
+    IN p_LeverancierNummer VARCHAR(50),
+    IN p_Mobiel VARCHAR(15),
+    IN p_Straat VARCHAR(100),
+    IN p_Huisnummer VARCHAR(10),
+    IN p_Postcode VARCHAR(10),
+    IN p_Stad VARCHAR(100)
+)
+BEGIN
+    DECLARE v_ContactId INT;
+    DECLARE v_ErrorOccurred INT DEFAULT 0;
+    
+    -- Get ContactId for this leverancier
+    SELECT ContactId INTO v_ContactId
+    FROM Leverancier
+    WHERE Id = p_LeverancierId;
+    
+    -- For testing error scenario: De Bron (Id=5) will fail
+    IF p_LeverancierId = 5 THEN
+        SET v_ErrorOccurred = 1;
+        SIGNAL SQLSTATE '45000'
+        SET MESSAGE_TEXT = 'Technische storing bij het bijwerken van leverancier';
+    ELSE
+        -- Update Contact address
+        UPDATE Contact
+        SET Straat = p_Straat,
+            Huisnummer = p_Huisnummer,
+            Postcode = p_Postcode,
+            Stad = p_Stad,
+            DatumGewijzigd = NOW(6)
+        WHERE Id = v_ContactId;
+        
+        -- Update Leverancier
+        UPDATE Leverancier
+        SET Naam = p_Naam,
+            ContactPersoon = p_ContactPersoon,
+            LeverancierNummer = p_LeverancierNummer,
+            Mobiel = p_Mobiel,
+            DatumGewijzigd = NOW(6)
+        WHERE Id = p_LeverancierId;
+    END IF;
 END//
 
 -- Stored Procedure: sp_AddProductLevering
