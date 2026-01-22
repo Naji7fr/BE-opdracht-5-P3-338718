@@ -13,6 +13,7 @@ class Leverancier extends Model
         'ContactPersoon',
         'LeverancierNummer',
         'Mobiel',
+        'ContactId',
         'IsActief',
         'Opmerking'
     ];
@@ -36,5 +37,10 @@ class Leverancier extends Model
     public function productLeveringen()
     {
         return $this->hasMany(ProductPerLeverancier::class, 'LeverancierId');
+    }
+
+    public function contact()
+    {
+        return $this->belongsTo(Contact::class, 'ContactId');
     }
 }
