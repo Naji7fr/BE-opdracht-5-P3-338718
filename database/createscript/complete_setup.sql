@@ -28,6 +28,8 @@ DROP PROCEDURE IF EXISTS sp_GetLeverancierById;
 DROP PROCEDURE IF EXISTS sp_AddProductLevering;
 DROP PROCEDURE IF EXISTS sp_GetLeverancierWithContactById;
 DROP PROCEDURE IF EXISTS sp_UpdateLeverancier;
+DROP PROCEDURE IF EXISTS sp_GetProductenMetAllergeen;
+DROP PROCEDURE IF EXISTS sp_GetLeverancierGegevensByProductId;
 
 -- ============================================
 -- PART 2: CREATE BUSINESS TABLES
@@ -47,13 +49,14 @@ CREATE TABLE Contact (
 );
 
 -- Table: Leverancier (Supplier)
+-- ContactId NULL allowed (Opdracht 4: leverancier zonder adresgegevens, bv. Hom Ken Food)
 CREATE TABLE Leverancier (
     Id INT AUTO_INCREMENT PRIMARY KEY,
     Naam VARCHAR(100) NOT NULL,
     ContactPersoon VARCHAR(100) NOT NULL,
     LeverancierNummer VARCHAR(20) NOT NULL UNIQUE,
     Mobiel VARCHAR(15) NOT NULL,
-    ContactId INT NOT NULL,
+    ContactId INT NULL,
     IsActief BIT NOT NULL DEFAULT 1,
     Opmerking VARCHAR(250) NULL,
     DatumAangemaakt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
@@ -129,24 +132,25 @@ CREATE TABLE ProductPerAllergeen (
 -- PART 3: INSERT INITIAL DATA
 -- ============================================
 
--- Insert Data: Contact (Contact Addresses)
+-- Insert Data: Contact (Contact Addresses) - Opdracht 4 specificatie
 INSERT INTO Contact (Straat, Huisnummer, Postcode, Stad) VALUES
-('Van Gilslaan', '34', '1045CB', 'Amsterdam'),
-('Den Dolderpad', '2', '1067RC', 'Hilvarenbeek'),
-('Fredo Raalteweg', '257', '1236OP', 'Utrecht'),
-('Bertrand Russellhof', '21', '2034AP', 'Nijmegen'),
-('Leon van Bonstraat', '213', '145XC', 'Den Haag'),
-('Bea van Lingenlaan', '234', '2197FG', 'Lunteren');
+('Van Gilslaan', '34', '1045CB', 'Hilvarenbeek'),
+('Den Dolderpad', '2', '1067RC', 'Utrecht'),
+('Fredo Raalteweg', '257', '1236OP', 'Nijmegen'),
+('Bertrand Russellhof', '21', '2034AP', 'Den Haag'),
+('Leon van Bonstraat', '213', '145XC', 'Lunteren'),
+('Bea van Lingenlaan', '234', '2197FG', 'Sint Pancras');
 
 -- Insert Data: Leverancier (Suppliers)
--- Note: ContactId mapping: 1=Venco, 2=Astra Sweets, 3=Haribo, 4=Basset, 5=De Bron, 6=Quality Street
+-- ContactId mapping: 1=Venco, 2=Astra Sweets, 3=Haribo, 4=Basset, 5=De Bron, 6=Quality Street, 7=Hom Ken Food (NULL)
 INSERT INTO Leverancier (Naam, ContactPersoon, LeverancierNummer, Mobiel, ContactId) VALUES
 ('Venco', 'Bert van Linge', 'L1029384719', '06-28493827', 1),
 ('Astra Sweets', 'Jasper del Monte', 'L1029284315', '06-39398734', 2),
 ('Haribo', 'Sven Stalman', 'L1029324748', '06-24383291', 3),
 ('Basset', 'Joyce Stelterberg', 'L1023845773', '06-48293823', 4),
 ('De Bron', 'Remco Veenstra', 'L1023857736', '06-34291234', 5),
-('Quality Street', 'Johan Nooij', 'L1029234586', '06-23458456', 6);
+('Quality Street', 'Johan Nooij', 'L1029234586', '06-23458456', 6),
+('Hom Ken Food', 'Hom Ken', 'L1029234599', '06-23458477', NULL);
 
 -- Insert Data: Product
 INSERT INTO Product (Naam, Barcode) VALUES
@@ -162,7 +166,8 @@ INSERT INTO Product (Naam, Barcode) VALUES
 ('Winegums', '8719587327527'),
 ('Drop Munten', '8719587322345'),
 ('Kruis Drop', '8719587322265'),
-('Zoute Ruitjes', '8719587323256');
+('Zoute Ruitjes', '8719587323256'),
+('Drop ninja''s', '8719587323277');
 
 -- Set Winegums as inactive (IsActief = 0) for User Story 2 Scenario 2
 UPDATE Product SET IsActief = 0 WHERE Naam = 'Winegums';
@@ -199,7 +204,8 @@ INSERT INTO ProductPerAllergeen (ProductId, AllergeenId) VALUES
 (9, 2), (9, 5),
 (10, 2),
 (12, 4),
-(13, 1), (13, 4), (13, 5);
+(13, 1), (13, 4), (13, 5),
+(14, 5);
 
 -- Insert Data: ProductPerLeverancier (Using dates from assignment: 2023-04-09 to 2023-04-21)
 -- Note: Assignment shows duplicate Id=14, but we use auto-increment so this will be Id=15
@@ -220,7 +226,8 @@ INSERT INTO ProductPerLeverancier (LeverancierId, ProductId, DatumLevering, Aant
 (5, 11, '2023-04-10', 47, '2023-04-17'),
 (5, 11, '2023-04-19', 60, '2023-04-26'),
 (5, 12, '2023-04-11', 45, NULL),
-(5, 13, '2023-04-12', 23, NULL);
+(5, 13, '2023-04-12', 23, NULL),
+(7, 14, '2023-04-14', 20, NULL);
 
 -- ============================================
 -- PART 4: CREATE STORED PROCEDURES
@@ -347,6 +354,49 @@ BEGIN
             DatumGewijzigd = NOW(6)
         WHERE Id = p_LeverancierId;
     END IF;
+END//
+
+-- Stored Procedure: sp_GetProductenMetAllergeen (Opdracht 4 - User Story 01)
+-- Description: Producten die een bepaald allergeen bevatten, gesorteerd A-Z (één rij per product)
+CREATE PROCEDURE sp_GetProductenMetAllergeen(IN p_AllergeenId INT)
+BEGIN
+    SELECT 
+        p.Id AS ProductId,
+        p.Naam AS ProductNaam,
+        p.Barcode,
+        MAX(a.Naam) AS AllergeenNaam,
+        MAX(a.Omschrijving) AS AllergeenOmschrijving
+    FROM Product p
+    INNER JOIN ProductPerAllergeen ppa ON p.Id = ppa.ProductId
+    INNER JOIN Allergeen a ON ppa.AllergeenId = a.Id
+    WHERE ppa.AllergeenId = p_AllergeenId
+      AND p.IsActief = 1
+      AND ppa.IsActief = 1
+    GROUP BY p.Id, p.Naam, p.Barcode
+    ORDER BY p.Naam ASC;
+END//
+
+-- Stored Procedure: sp_GetLeverancierGegevensByProductId (Opdracht 4 - User Story 01)
+-- Description: Leverancier + adresgegevens voor een product (ContactId mag NULL zijn)
+CREATE PROCEDURE sp_GetLeverancierGegevensByProductId(IN p_ProductId INT)
+BEGIN
+    SELECT 
+        l.Id AS LeverancierId,
+        l.Naam AS LeverancierNaam,
+        l.ContactPersoon,
+        l.LeverancierNummer,
+        l.Mobiel,
+        l.ContactId,
+        c.Straat,
+        c.Huisnummer,
+        c.Postcode,
+        c.Stad
+    FROM ProductPerLeverancier ppl
+    INNER JOIN Leverancier l ON ppl.LeverancierId = l.Id
+    LEFT JOIN Contact c ON l.ContactId = c.Id
+    WHERE ppl.ProductId = p_ProductId
+      AND l.IsActief = 1
+    LIMIT 1;
 END//
 
 -- Stored Procedure: sp_AddProductLevering
