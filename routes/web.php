@@ -4,9 +4,13 @@ use App\Http\Controllers\ProfileController;
 use App\Http\Controllers\UserController;
 use App\Http\Controllers\LeverancierController;
 use App\Http\Controllers\AllergenenController;
+use App\Http\Controllers\GeleverdeProductenController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
+    if (auth()->check()) {
+        return redirect()->route('dashboard');
+    }
     return view('welcome');
 });
 
@@ -41,6 +45,10 @@ Route::middleware('auth')->group(function () {
     // Overzicht Allergenen (Opdracht 4 - User Story 01)
     Route::get('/allergenen', [AllergenenController::class, 'index'])->name('allergenen.index');
     Route::get('/allergenen/product/{productId}/leverancier', [AllergenenController::class, 'leverancierGegevens'])->name('allergenen.leverancier');
+
+    // Overzicht geleverde producten (User Story 1)
+    Route::get('/geleverde-producten', [GeleverdeProductenController::class, 'index'])->name('geleverde-producten.index');
+    Route::get('/geleverde-producten/specificatie/{productId}', [GeleverdeProductenController::class, 'specificatie'])->name('geleverde-producten.specificatie');
 });
 
 require __DIR__.'/auth.php';
