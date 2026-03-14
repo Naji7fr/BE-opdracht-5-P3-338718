@@ -30,6 +30,8 @@ DROP PROCEDURE IF EXISTS sp_GetLeverancierWithContactById;
 DROP PROCEDURE IF EXISTS sp_UpdateLeverancier;
 DROP PROCEDURE IF EXISTS sp_GetProductenMetAllergeen;
 DROP PROCEDURE IF EXISTS sp_GetLeverancierGegevensByProductId;
+DROP PROCEDURE IF EXISTS sp_GetGeleverdeProductenByTijdsvak;
+DROP PROCEDURE IF EXISTS sp_GetSpecificatieLeveringen;
 
 -- ============================================
 -- PART 2: CREATE BUSINESS TABLES
@@ -397,6 +399,39 @@ BEGIN
     WHERE ppl.ProductId = p_ProductId
       AND l.IsActief = 1
     LIMIT 1;
+END//
+
+-- Stored Procedure: sp_GetGeleverdeProductenByTijdsvak (Overzicht geleverde producten)
+-- Description: Geleverde producten in een tijdsvak, gegroepeerd per leverancier+product, totaal geleverd, gesorteerd A-Z op leverancier
+CREATE PROCEDURE sp_GetGeleverdeProductenByTijdsvak(IN p_StartDatum DATE, IN p_EindDatum DATE)
+BEGIN
+    SELECT 
+        l.Id AS LeverancierId,
+        l.Naam AS LeverancierNaam,
+        l.ContactPersoon,
+        p.Id AS ProductId,
+        p.Naam AS ProductNaam,
+        SUM(ppl.Aantal) AS TotaalGeleverd
+    FROM ProductPerLeverancier ppl
+    INNER JOIN Leverancier l ON ppl.LeverancierId = l.Id
+    INNER JOIN Product p ON ppl.ProductId = p.Id
+    WHERE ppl.DatumLevering BETWEEN p_StartDatum AND p_EindDatum
+      AND l.IsActief = 1
+    GROUP BY l.Id, l.Naam, l.ContactPersoon, p.Id, p.Naam
+    ORDER BY l.Naam ASC, p.Naam ASC;
+END//
+
+-- Stored Procedure: sp_GetSpecificatieLeveringen (Specificatie geleverde producten)
+-- Description: Per-levering regels voor een product in een tijdsvak (DatumLevering, Aantal)
+CREATE PROCEDURE sp_GetSpecificatieLeveringen(IN p_ProductId INT, IN p_StartDatum DATE, IN p_EindDatum DATE)
+BEGIN
+    SELECT 
+        ppl.DatumLevering,
+        ppl.Aantal
+    FROM ProductPerLeverancier ppl
+    WHERE ppl.ProductId = p_ProductId
+      AND ppl.DatumLevering BETWEEN p_StartDatum AND p_EindDatum
+    ORDER BY ppl.DatumLevering ASC;
 END//
 
 -- Stored Procedure: sp_AddProductLevering
