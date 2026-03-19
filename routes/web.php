@@ -5,6 +5,7 @@ use App\Http\Controllers\UserController;
 use App\Http\Controllers\LeverancierController;
 use App\Http\Controllers\AllergenenController;
 use App\Http\Controllers\GeleverdeProductenController;
+use App\Http\Controllers\AssortimentController;
 use Illuminate\Support\Facades\Route;
 
 Route::get('/', function () {
@@ -49,6 +50,11 @@ Route::middleware('auth')->group(function () {
     // Overzicht geleverde producten (User Story 1)
     Route::get('/geleverde-producten', [GeleverdeProductenController::class, 'index'])->name('geleverde-producten.index');
     Route::get('/geleverde-producten/specificatie/{productId}', [GeleverdeProductenController::class, 'specificatie'])->name('geleverde-producten.specificatie');
+
+    // Verwijder product uit het assortiment (Opdracht 5 - User Story 1)
+    Route::get('/assortiment', [AssortimentController::class, 'index'])->name('assortiment.index');
+    Route::get('/assortiment/{productId}', [AssortimentController::class, 'show'])->name('assortiment.show');
+    Route::delete('/assortiment/{productId}', [AssortimentController::class, 'destroy'])->name('assortiment.destroy');
 });
 
 require __DIR__.'/auth.php';

@@ -13,6 +13,20 @@
                     <p class="mb-6">{{ __("You're logged in!") }}</p>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <!-- Overzicht producten uit het assortiment (Opdracht 5 - User Story 1) -->
+                        <a href="{{ route('assortiment.index') }}"
+                           class="block p-6 bg-red-50 hover:bg-red-100 border border-red-200 rounded-lg transition-colors duration-200">
+                            <div class="flex items-center">
+                                <svg xmlns="http://www.w3.org/2000/svg" class="h-12 w-12 text-red-600 mr-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                </svg>
+                                <div>
+                                    <h4 class="text-xl font-semibold text-gray-800">Overzicht producten uit het assortiment</h4>
+                                    <p class="text-gray-600 mt-1">Verwijder producten die niet meer leverbaar zijn</p>
+                                </div>
+                            </div>
+                        </a>
+
                         <!-- Overzicht Allergenen Link (Opdracht 4 - User Story 01) -->
                         <a href="{{ route('allergenen.index') }}"
                            class="block p-6 bg-amber-50 hover:bg-amber-100 border border-amber-200 rounded-lg transition-colors duration-200">

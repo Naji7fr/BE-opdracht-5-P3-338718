@@ -12,6 +12,7 @@
 -- Drop existing business tables if they exist (in reverse order due to foreign keys)
 DROP TABLE IF EXISTS ProductPerAllergeen;
 DROP TABLE IF EXISTS ProductPerLeverancier;
+DROP TABLE IF EXISTS ProductEinddatumLevering;
 DROP TABLE IF EXISTS Magazijn;
 DROP TABLE IF EXISTS Allergeen;
 DROP TABLE IF EXISTS Product;
@@ -32,6 +33,9 @@ DROP PROCEDURE IF EXISTS sp_GetProductenMetAllergeen;
 DROP PROCEDURE IF EXISTS sp_GetLeverancierGegevensByProductId;
 DROP PROCEDURE IF EXISTS sp_GetGeleverdeProductenByTijdsvak;
 DROP PROCEDURE IF EXISTS sp_GetSpecificatieLeveringen;
+DROP PROCEDURE IF EXISTS sp_GetProductenUitAssortiment;
+DROP PROCEDURE IF EXISTS sp_GetProductDetail;
+DROP PROCEDURE IF EXISTS sp_VerwijderProduct;
 
 -- ============================================
 -- PART 2: CREATE BUSINESS TABLES
@@ -117,6 +121,17 @@ CREATE TABLE ProductPerLeverancier (
     FOREIGN KEY (ProductId) REFERENCES Product(Id) ON DELETE CASCADE
 );
 
+-- Table: ProductEinddatumLevering (Opdracht 5 - User Story 1)
+CREATE TABLE ProductEinddatumLevering (
+    Id INT AUTO_INCREMENT PRIMARY KEY,
+    ProductId INT NOT NULL,
+    EinddatumLevering DATE NOT NULL,
+    IsActief BIT NOT NULL DEFAULT 1,
+    DatumAangemaakt DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6),
+    DatumGewijzigd DATETIME(6) NOT NULL DEFAULT CURRENT_TIMESTAMP(6) ON UPDATE CURRENT_TIMESTAMP(6),
+    FOREIGN KEY (ProductId) REFERENCES Product(Id) ON DELETE CASCADE
+);
+
 -- Table: ProductPerAllergeen (Product per Allergen)
 CREATE TABLE ProductPerAllergeen (
     Id INT AUTO_INCREMENT PRIMARY KEY,
@@ -173,6 +188,18 @@ INSERT INTO Product (Naam, Barcode) VALUES
 
 -- Set Winegums as inactive (IsActief = 0) for User Story 2 Scenario 2
 UPDATE Product SET IsActief = 0 WHERE Naam = 'Winegums';
+
+-- Insert Data: ProductEinddatumLevering (Opdracht 5 - User Story 1)
+-- Honingdrop uses a future date (2027-05-30) so Scenario 03 still works today (Jan 2026+)
+INSERT INTO ProductEinddatumLevering (ProductId, EinddatumLevering) VALUES
+(1,  '2024-06-01'),  -- Mintnopjes
+(2,  '2024-05-22'),  -- Schoolkrijt  (past  -> CAN be deleted,  Scenario 02)
+(3,  '2027-05-30'),  -- Honingdrop   (future -> CANNOT be deleted, Scenario 03)
+(4,  '2024-05-12'),  -- Zure Beren
+(7,  '2024-05-27'),  -- Witte Muizen
+(10, '2024-05-03'),  -- Winegums
+(11, '2024-02-09'),  -- Drop Munten
+(14, '2024-01-01');  -- Drop ninja's
 
 -- Insert Data: Allergeen (Allergens)
 INSERT INTO Allergeen (Naam, Omschrijving) VALUES
@@ -432,6 +459,80 @@ BEGIN
     WHERE ppl.ProductId = p_ProductId
       AND ppl.DatumLevering BETWEEN p_StartDatum AND p_EindDatum
     ORDER BY ppl.DatumLevering ASC;
+END//
+
+-- Stored Procedure: sp_GetProductenUitAssortiment (Opdracht 5 - User Story 1)
+-- Description: Products going out of assortment in a date range, sorted by EinddatumLevering DESC
+CREATE PROCEDURE sp_GetProductenUitAssortiment(
+    IN p_StartDatum DATE,
+    IN p_EindDatum  DATE
+)
+BEGIN
+    SELECT
+        p.Id                  AS ProductId,
+        p.Naam                AS ProductNaam,
+        l.Naam                AS LeverancierNaam,
+        l.ContactPersoon,
+        COALESCE(c.Stad, '')  AS Stad,
+        pel.EinddatumLevering
+    FROM ProductEinddatumLevering pel
+    INNER JOIN Product p
+        ON pel.ProductId = p.Id AND p.IsActief = 1
+    INNER JOIN (
+        SELECT ProductId, MIN(LeverancierId) AS LeverancierId
+        FROM ProductPerLeverancier
+        GROUP BY ProductId
+    ) ppl_first ON p.Id = ppl_first.ProductId
+    INNER JOIN Leverancier l
+        ON ppl_first.LeverancierId = l.Id AND l.IsActief = 1
+    LEFT JOIN Contact c
+        ON l.ContactId = c.Id
+    WHERE pel.EinddatumLevering BETWEEN p_StartDatum AND p_EindDatum
+    ORDER BY pel.EinddatumLevering DESC;
+END//
+
+-- Stored Procedure: sp_GetProductDetail (Opdracht 5 - User Story 1)
+-- Description: Product info + allergen flags (Ja/Nee) for product detail page
+CREATE PROCEDURE sp_GetProductDetail(IN p_ProductId INT)
+BEGIN
+    SELECT
+        p.Id,
+        p.Naam,
+        p.Barcode,
+        COALESCE(MAX(CASE WHEN a.Naam = 'Gluten'        THEN 'Ja' END), 'Nee') AS BevatGluten,
+        COALESCE(MAX(CASE WHEN a.Naam = 'Gelatine'      THEN 'Ja' END), 'Nee') AS BevatGelatine,
+        COALESCE(MAX(CASE WHEN a.Naam = 'AZO-Kleurstof' THEN 'Ja' END), 'Nee') AS BevatAZOKleurstof,
+        COALESCE(MAX(CASE WHEN a.Naam = 'Lactose'       THEN 'Ja' END), 'Nee') AS BevatLactose,
+        COALESCE(MAX(CASE WHEN a.Naam = 'Soja'          THEN 'Ja' END), 'Nee') AS BevatSoja,
+        pel.EinddatumLevering
+    FROM Product p
+    LEFT JOIN ProductPerAllergeen ppa ON p.Id = ppa.ProductId AND ppa.IsActief = 1
+    LEFT JOIN Allergeen a ON ppa.AllergeenId = a.Id AND a.IsActief = 1
+    LEFT JOIN ProductEinddatumLevering pel ON p.Id = pel.ProductId
+    WHERE p.Id = p_ProductId
+    GROUP BY p.Id, p.Naam, p.Barcode, pel.EinddatumLevering;
+END//
+
+-- Stored Procedure: sp_VerwijderProduct (Opdracht 5 - User Story 1)
+-- Description: Sets Product.IsActief=0 if today >= EinddatumLevering; returns 'success' or 'blocked'
+CREATE PROCEDURE sp_VerwijderProduct(IN p_ProductId INT)
+BEGIN
+    DECLARE v_EinddatumLevering DATE;
+
+    SELECT EinddatumLevering INTO v_EinddatumLevering
+    FROM ProductEinddatumLevering
+    WHERE ProductId = p_ProductId
+    LIMIT 1;
+
+    IF v_EinddatumLevering IS NULL THEN
+        SELECT 'blocked' AS resultaat;
+    ELSEIF CURDATE() < v_EinddatumLevering THEN
+        SELECT 'blocked' AS resultaat;
+    ELSE
+        UPDATE Product SET IsActief = 0, DatumGewijzigd = NOW(6)
+        WHERE Id = p_ProductId;
+        SELECT 'success' AS resultaat;
+    END IF;
 END//
 
 -- Stored Procedure: sp_AddProductLevering
