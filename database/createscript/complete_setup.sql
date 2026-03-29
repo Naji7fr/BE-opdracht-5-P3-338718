@@ -190,16 +190,21 @@ INSERT INTO Product (Naam, Barcode) VALUES
 UPDATE Product SET IsActief = 0 WHERE Naam = 'Winegums';
 
 -- Insert Data: ProductEinddatumLevering (Opdracht 5 - User Story 1)
--- Honingdrop uses a future date (2027-05-30) so Scenario 03 still works today (Jan 2026+)
+-- Both Schoolkrijt and Honingdrop appear in filter 01-05-2024..01-06-2024
+-- Schoolkrijt CAN be deleted (Scenario 02), Honingdrop is BLOCKED (Scenario 03)
+-- Block is via future DatumEerstVolgendeLevering in ProductPerLeverancier (see UPDATE below)
 INSERT INTO ProductEinddatumLevering (ProductId, EinddatumLevering) VALUES
 (1,  '2024-06-01'),  -- Mintnopjes
-(2,  '2024-05-22'),  -- Schoolkrijt  (past  -> CAN be deleted,  Scenario 02)
-(3,  '2027-05-30'),  -- Honingdrop   (future -> CANNOT be deleted, Scenario 03)
+(2,  '2024-05-22'),  -- Schoolkrijt  -> CAN delete (Scenario 02)
+(3,  '2024-05-30'),  -- Honingdrop   -> BLOCKED     (Scenario 03)
 (4,  '2024-05-12'),  -- Zure Beren
 (7,  '2024-05-27'),  -- Witte Muizen
 (10, '2024-05-03'),  -- Winegums
 (11, '2024-02-09'),  -- Drop Munten
 (14, '2024-01-01');  -- Drop ninja's
+
+-- Give Honingdrop a future DatumEerstVolgendeLevering so sp_VerwijderProduct blocks its deletion
+UPDATE ProductPerLeverancier SET DatumEerstVolgendeLevering = '2027-05-30' WHERE ProductId = 3;
 
 -- Insert Data: Allergeen (Allergens)
 INSERT INTO Allergeen (Naam, Omschrijving) VALUES
@@ -514,19 +519,24 @@ BEGIN
 END//
 
 -- Stored Procedure: sp_VerwijderProduct (Opdracht 5 - User Story 1)
--- Description: Sets Product.IsActief=0 if today >= EinddatumLevering; returns 'success' or 'blocked'
+-- Description: Sets Product.IsActief=0 unless a future delivery is still expected.
+-- Returns: resultaat = 'success' | 'blocked'
 CREATE PROCEDURE sp_VerwijderProduct(IN p_ProductId INT)
 BEGIN
-    DECLARE v_EinddatumLevering DATE;
+    DECLARE v_EinddatumLevering     DATE;
+    DECLARE v_MaxEerstVolgendeDatum DATE;
 
     SELECT EinddatumLevering INTO v_EinddatumLevering
     FROM ProductEinddatumLevering
-    WHERE ProductId = p_ProductId
-    LIMIT 1;
+    WHERE ProductId = p_ProductId LIMIT 1;
+
+    SELECT MAX(DatumEerstVolgendeLevering) INTO v_MaxEerstVolgendeDatum
+    FROM ProductPerLeverancier
+    WHERE ProductId = p_ProductId;
 
     IF v_EinddatumLevering IS NULL THEN
         SELECT 'blocked' AS resultaat;
-    ELSEIF CURDATE() < v_EinddatumLevering THEN
+    ELSEIF v_MaxEerstVolgendeDatum IS NOT NULL AND v_MaxEerstVolgendeDatum > CURDATE() THEN
         SELECT 'blocked' AS resultaat;
     ELSE
         UPDATE Product SET IsActief = 0, DatumGewijzigd = NOW(6)

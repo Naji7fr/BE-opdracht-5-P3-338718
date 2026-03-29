@@ -22,16 +22,21 @@ CREATE TABLE ProductEinddatumLevering (
 );
 
 -- Insert data according to assignment specification
--- Note: Honingdrop (Id=3) uses a future date (2027-05-30) so Scenario 03 still works today
+-- Honingdrop (Id=3) EinddatumLevering = 2024-05-30 (shows in 01-05-2024..01-06-2024 filter)
+-- Honingdrop delete is BLOCKED because its DatumEerstVolgendeLevering is set to 2027-05-30 (future)
+-- Schoolkrijt (Id=2) delete succeeds because MaxDatumEerstVolgendeLevering is in the past
 INSERT INTO ProductEinddatumLevering (ProductId, EinddatumLevering) VALUES
 (1,  '2024-06-01'),  -- Mintnopjes
-(2,  '2024-05-22'),  -- Schoolkrijt  (past  -> CAN be deleted)
-(3,  '2027-05-30'),  -- Honingdrop   (future -> CANNOT be deleted, Scenario 03)
+(2,  '2024-05-22'),  -- Schoolkrijt  -> CAN be deleted (Scenario 02)
+(3,  '2024-05-30'),  -- Honingdrop   -> BLOCKED (Scenario 03) via future DatumEerstVolgendeLevering
 (4,  '2024-05-12'),  -- Zure Beren
 (7,  '2024-05-27'),  -- Witte Muizen
 (10, '2024-05-03'),  -- Winegums
 (11, '2024-02-09'),  -- Drop Munten
 (14, '2024-01-01');  -- Drop ninja's
+
+-- Give Honingdrop a future DatumEerstVolgendeLevering so sp_VerwijderProduct blocks deletion
+UPDATE ProductPerLeverancier SET DatumEerstVolgendeLevering = '2027-05-30' WHERE ProductId = 3;
 
 DELIMITER //
 
@@ -99,26 +104,30 @@ END//
 
 -- -------------------------------------------------------
 -- sp_VerwijderProduct
--- Deletes a product from the assortment by setting
--- Product.IsActief = 0, but ONLY when today >= EinddatumLevering.
+-- Deletes a product from the assortment (IsActief = 0).
+-- BLOCKED when: there is still a future expected delivery
+--   (MAX DatumEerstVolgendeLevering > today).
 -- Returns: resultaat = 'success' | 'blocked'
 -- -------------------------------------------------------
 CREATE PROCEDURE sp_VerwijderProduct(IN p_ProductId INT)
 BEGIN
-    DECLARE v_EinddatumLevering DATE;
+    DECLARE v_EinddatumLevering     DATE;
+    DECLARE v_MaxEerstVolgendeDatum DATE;
 
     SELECT EinddatumLevering INTO v_EinddatumLevering
     FROM ProductEinddatumLevering
-    WHERE ProductId = p_ProductId
-    LIMIT 1;
+    WHERE ProductId = p_ProductId LIMIT 1;
+
+    SELECT MAX(DatumEerstVolgendeLevering) INTO v_MaxEerstVolgendeDatum
+    FROM ProductPerLeverancier
+    WHERE ProductId = p_ProductId;
 
     IF v_EinddatumLevering IS NULL THEN
         SELECT 'blocked' AS resultaat;
-    ELSEIF CURDATE() < v_EinddatumLevering THEN
-        -- Today is before the end date: cannot delete
+    ELSEIF v_MaxEerstVolgendeDatum IS NOT NULL AND v_MaxEerstVolgendeDatum > CURDATE() THEN
+        -- Future delivery still expected: cannot delete
         SELECT 'blocked' AS resultaat;
     ELSE
-        -- Today is on or after the end date: safe to delete
         UPDATE Product SET IsActief = 0, DatumGewijzigd = NOW(6)
         WHERE Id = p_ProductId;
         SELECT 'success' AS resultaat;
